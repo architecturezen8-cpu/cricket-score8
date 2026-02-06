@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pro Cricket Overlay</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body { margin: 0; padding: 0; background: transparent; overflow: hidden; font-family: 'Montserrat', sans-serif; }
+        
+        /* Main Container setup */
+        .container {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            display: flex; align-items: center; justify-content: center;
+            width: 95%; max-width: 1200px; height: 90px;
+        }
+
+        /* 1. Flag Boxes */
+        .flag-box {
+            width: 70px; height: 45px;
+            background: #fff; border-radius: 6px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            overflow: hidden; display: flex; align-items: center; justify-content: center;
+            z-index: 10;
+        }
+        .flag-img { width: 100%; height: 100%; object-fit: cover; }
+        .flag-left { margin-right: -15px; } /* Overlap effect */
+        .flag-right { margin-left: -15px; }
+
+        /* 2. Main Bar Container */
+        .main-bar {
+            display: flex; flex: 1; height: 75px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.4);
+            border-radius: 40px; overflow: hidden;
+            position: relative; z-index: 5; margin: 0 5px;
+        }
+
+        /* --- Left Side (White - Batsmen) --- */
+        .white-section {
+            flex: 1.2;
+            background: linear-gradient(to right, #ffffff, #f1f2f6);
+            display: flex; flex-direction: column; justify-content: center;
+            padding-left: 30px; padding-right: 15px;
+            clip-path: polygon(0 0, 100% 0, 95% 100%, 0% 100%); /* Slanted cut */
+        }
+        .batsman-row { display: flex; justify-content: space-between; align-items: center; line-height: 1.4; color: #0a1238; }
+        .b-name { font-weight: 800; font-size: 17px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .b-stats { font-weight: 600; font-size: 17px; color: #0a1238; }
+        .b-balls { font-size: 13px; color: #555; margin-left: 3px; font-weight: 400; }
+        .striker-arrow { color: #d63031; font-size: 14px; margin-right: 5px; opacity: 0; }
+
+        /* --- Right Side (Blue - Score & Bowler) --- */
+        .blue-section {
+            flex: 2;
+            background: linear-gradient(90deg, #0f1c4d 0%, #1a2a6c 100%);
+            display: flex; align-items: center; justify-content: space-between;
+            padding-left: 30px; padding-right: 30px; margin-left: -15px;
+            color: white;
+        }
+
+        /* Score Area */
+        .score-info { display: flex; flex-direction: column; justify-content: center; }
+        .match-header { font-size: 12px; color: #8ba4e6; font-weight: 700; text-transform: uppercase; margin-bottom: 3px; letter-spacing: 1px; }
+        
+        .score-line { display: flex; align-items: center; gap: 10px; }
+        .main-score-pill {
+            background: linear-gradient(180deg, #e74c3c, #c0392b);
+            padding: 2px 12px; border-radius: 12px;
+            font-size: 24px; font-weight: 800; text-shadow: 0 2px 2px rgba(0,0,0,0.3);
+        }
+        .partners { background: #3a5da8; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .overs { font-size: 18px; font-weight: 700; }
+        
+        .target-text { font-size: 12px; font-weight: 600; color: #bdc3c7; margin-top: 2px; }
+
+        /* Bowler Area */
+        .bowler-info { text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
+        .bowler-top { display: flex; gap: 10px; align-items: baseline; }
+        .bw-name { font-size: 16px; font-weight: 800; text-transform: uppercase; }
+        .bw-figs { font-size: 16px; font-weight: 700; color: #ffeb3b; }
+        
+        .balls-row { display: flex; gap: 4px; margin-top: 5px; }
+        .ball { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #8ba4e6; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: bold; background: transparent; }
+        .ball.w { background: #e74c3c; border-color: #e74c3c; color: white; }
+        .ball.four { background: #27ae60; border-color: #27ae60; color: white; }
+        .ball.six { background: #8e44ad; border-color: #8e44ad; color: white; }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Batting Flag -->
+        <div class="flag-box flag-left"><img id="batFlag" src="" class="flag-img"></div>
+
+        <!-- Main Scoreboard Bar -->
+        <div class="main-bar">
+            <!-- Batsmen (White) -->
+            <div class="white-section">
+                <div class="batsman-row">
+                    <div><span class="striker-arrow" id="arrow1">▶</span><span class="b-name" id="b1Name">BATSMAN 1</span></div>
+                    <div class="b-stats"><span id="b1Score">0</span> <span class="b-balls" id="b1Balls">0</span></div>
+                </div>
+                <div class="batsman-row">
+                    <div><span class="striker-arrow" id="arrow2">▶</span><span class="b-name" id="b2Name">BATSMAN 2</span></div>
+                    <div class="b-stats"><span id="b2Score">0</span> <span class="b-balls" id="b2Balls">0</span></div>
+                </div>
+            </div>
+
+            <!-- Score & Bowler (Blue) -->
+            <div class="blue-section">
+                <div class="score-info">
+                    <div class="match-header" id="header">MATCH INFO</div>
+                    <div class="score-line">
+                        <div class="main-score-pill" id="score">0-0</div>
+                        <span class="partners" id="partnership">P: 0</span>
+                        <span class="overs" id="overs">0.0</span>
+                    </div>
+                    <div class="target-text" id="status">INNINGS 1</div>
+                </div>
+
+                <div class="bowler-info">
+                    <div class="bowler-top">
+                        <span class="bw-name" id="bowlName">BOWLER</span>
+                        <span class="bw-figs" id="bowlFigs">0-0</span>
+                    </div>
+                    <div class="balls-row" id="ballsDiv">
+                        <!-- Balls -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bowling Flag -->
+        <div class="flag-box flag-right"><img id="bowlFlag" src="" class="flag-img"></div>
+    </div>
+
+    <script>
+        // ===============================================
+        // මෙතන ඔයා කැමති රහස් නමක් දෙන්න (Admin එකෙත් මේකම දෙන්න)
+        const MY_SECRET_ID = "my_match_999"; 
+        // ===============================================
+
+        const client = new Paho.MQTT.Client("broker.hivemq.com", 8884, "client_ov_" + parseInt(Math.random()*1000));
+
+        client.onConnectionLost = (obj) => { console.log("Lost connection", obj); setTimeout(connect, 2000); };
+        client.onMessageArrived = (msg) => {
+            try { updateUI(JSON.parse(msg.payloadString)); } catch(e){}
+        };
+
+        function connect() {
+            client.connect({ useSSL: true, onSuccess: () => {
+                console.log("Connected");
+                client.subscribe("cricket_live/" + MY_SECRET_ID);
+            }});
+        }
+        connect();
+
+        function updateUI(data) {
+            document.getElementById('batFlag').src = data.batFlag;
+            document.getElementById('bowlFlag').src = data.bowlFlag;
+            
+            document.getElementById('b1Name').innerText = data.bat1.name;
+            document.getElementById('b1Score').innerText = data.bat1.runs;
+            document.getElementById('b1Balls').innerText = data.bat1.balls;
+            
+            document.getElementById('b2Name').innerText = data.bat2.name;
+            document.getElementById('b2Score').innerText = data.bat2.runs;
+            document.getElementById('b2Balls').innerText = data.bat2.balls;
+
+            document.getElementById('arrow1').style.opacity = (data.striker == 1) ? 1 : 0;
+            document.getElementById('arrow2').style.opacity = (data.striker == 2) ? 1 : 0;
+
+            document.getElementById('header').innerText = data.header;
+            document.getElementById('score').innerText = data.runs + "-" + data.wkts;
+            document.getElementById('partnership').innerText = data.partner;
+            document.getElementById('overs').innerText = data.overs;
+            document.getElementById('status').innerText = data.status;
+
+            document.getElementById('bowlName').innerText = data.bowler.name;
+            document.getElementById('bowlFigs').innerText = data.bowler.figs;
+
+            // Render Balls
+            let ballsHtml = "";
+            let balls = data.thisOver.split(",");
+            balls.forEach(b => {
+                b = b.trim();
+                if(b) {
+                    let cls = "ball";
+                    if(b.toUpperCase().includes("W")) cls += " w";
+                    else if(b.includes("4") || b.includes("6")) cls += " four";
+                    ballsHtml += `<div class="${cls}">${b}</div>`;
+                }
+            });
+            document.getElementById('ballsDiv').innerHTML = ballsHtml;
+        }
+    </script>
+</body>
+</html>

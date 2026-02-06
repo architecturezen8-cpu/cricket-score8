@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Score Controller</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <style>
+        body { font-family: sans-serif; background: #eee; padding: 20px; }
+        .box { background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+        input, select { width: 100%; padding: 8px; margin: 4px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .row { display: flex; gap: 5px; }
+        button { width: 100%; padding: 15px; background: #0c1535; color: white; border: none; font-size: 18px; font-weight: bold; border-radius: 5px; cursor: pointer; }
+        button:active { background: #222; }
+    </style>
+</head>
+<body>
+    <h2 style="text-align:center">Cricket Controller</h2>
+    
+    <div class="box">
+        <b>Match Header:</b> <input id="header" value="AUS v BAN">
+        <b>Flags (URL):</b>
+        <div class="row">
+            <input id="batFlag" value="https://flagcdn.com/w80/bd.png">
+            <input id="bowlFlag" value="https://flagcdn.com/w80/au.png">
+        </div>
+    </div>
+
+    <div class="box">
+        <b>Score:</b>
+        <div class="row">
+            <input type="number" id="runs" placeholder="Runs" value="144">
+            <input type="number" id="wkts" placeholder="Wkts" value="3">
+        </div>
+        <div class="row">
+            <input type="number" id="overs" placeholder="Overs" value="24.1">
+            <input id="partner" placeholder="Partner (P2)" value="P2: 50">
+        </div>
+        <input id="status" value="TARGET 382">
+    </div>
+
+    <div class="box">
+        <b>Batsmen:</b>
+        <div class="row">
+            <input id="b1Name" value="TAMIM"> <input id="b1Runs" value="62"> <input id="b1Balls" value="73">
+        </div>
+        <div class="row">
+            <input id="b2Name" value="MUSHFIQUR"> <input id="b2Runs" value="23"> <input id="b2Balls" value="22">
+        </div>
+        <b>Striker:</b>
+        <select id="striker"><option value="1">Batsman 1</option><option value="2">Batsman 2</option></select>
+    </div>
+
+    <div class="box">
+        <b>Bowler:</b>
+        <input id="bowlName" value="STARC">
+        <input id="bowlFigs" value="0-21">
+        <b>This Over (comma separated):</b>
+        <input id="thisOver" value="0,1,W,4,0">
+    </div>
+
+    <button onclick="send()">UPDATE DISPLAY</button>
+    <p style="text-align:center; font-size:12px; color:green" id="conn"></p>
+
+    <script>
+        // ===============================================
+        // Overlay එකේ දුන්න එකම නම මෙතනත් දෙන්න!
+        const MY_SECRET_ID = "my_match_999"; 
+        // ===============================================
+
+        const client = new Paho.MQTT.Client("broker.hivemq.com", 8884, "client_ad_" + parseInt(Math.random()*1000));
+        
+        client.connect({ useSSL: true, onSuccess: () => {
+            document.getElementById('conn').innerText = "✅ System Connected";
+        }});
+
+        function send() {
+            const data = {
+                header: document.getElementById('header').value,
+                batFlag: document.getElementById('batFlag').value,
+                bowlFlag: document.getElementById('bowlFlag').value,
+                runs: document.getElementById('runs').value,
+                wkts: document.getElementById('wkts').value,
+                overs: document.getElementById('overs').value,
+                partner: document.getElementById('partner').value,
+                status: document.getElementById('status').value,
+                bat1: {
+                    name: document.getElementById('b1Name').value,
+                    runs: document.getElementById('b1Runs').value,
+                    balls: document.getElementById('b1Balls').value
+                },
+                bat2: {
+                    name: document.getElementById('b2Name').value,
+                    runs: document.getElementById('b2Runs').value,
+                    balls: document.getElementById('b2Balls').value
+                },
+                striker: document.getElementById('striker').value,
+                bowler: {
+                    name: document.getElementById('bowlName').value,
+                    figs: document.getElementById('bowlFigs').value
+                },
+                thisOver: document.getElementById('thisOver').value
+            };
+            
+            const message = new Paho.MQTT.Message(JSON.stringify(data));
+            message.destinationName = "cricket_live/" + MY_SECRET_ID;
+            client.send(message);
+        }
+    </script>
+</body>
+</html>
