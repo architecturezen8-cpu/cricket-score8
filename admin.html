@@ -1,65 +1,236 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Score Controller</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pro Scorer</title>
+    <!-- MQTT Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <!-- Modern Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
     <style>
-        body { font-family: sans-serif; background: #eee; padding: 20px; }
-        .box { background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
-        input, select { width: 100%; padding: 8px; margin: 4px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        .row { display: flex; gap: 5px; }
-        button { width: 100%; padding: 15px; background: #0c1535; color: white; border: none; font-size: 18px; font-weight: bold; border-radius: 5px; cursor: pointer; }
-        button:active { background: #222; }
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --primary: #3b82f6;
+            --success: #10b981;
+            --text-main: #f8fafc;
+            --text-mute: #94a3b8;
+            --input-bg: #334155;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Poppins', sans-serif;
+            margin: 0; padding: 0; padding-bottom: 80px; /* Space for fixed button */
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* --- Header --- */
+        .header {
+            background: rgba(30, 41, 59, 0.95);
+            padding: 15px 20px;
+            position: sticky; top: 0; z-index: 100;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid #334155;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .app-name { font-weight: 700; font-size: 18px; color: var(--primary); }
+        .status-badge {
+            font-size: 12px; padding: 4px 10px; border-radius: 20px;
+            background: #334155; color: #94a3b8; font-weight: 600;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #64748b; }
+        .connected .status-badge { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+        .connected .status-dot { background: var(--success); box-shadow: 0 0 8px var(--success); }
+
+        /* --- Layout --- */
+        .container { padding: 15px; max-width: 600px; margin: 0 auto; }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-title {
+            font-size: 14px; text-transform: uppercase; letter-spacing: 1px;
+            color: var(--text-mute); margin-bottom: 15px; font-weight: 700;
+            display: flex; align-items: center; gap: 8px;
+        }
+
+        /* --- Inputs --- */
+        .input-group { margin-bottom: 12px; }
+        label { display: block; font-size: 12px; color: var(--text-mute); margin-bottom: 5px; }
+        
+        input, select {
+            width: 100%;
+            background: var(--input-bg);
+            border: 1px solid transparent;
+            color: white;
+            padding: 12px 15px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-family: inherit;
+            box-sizing: border-box;
+            transition: 0.3s;
+        }
+        input:focus { border-color: var(--primary); outline: none; background: #475569; }
+
+        /* Grid Layouts */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+        .grid-bat { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 8px; }
+
+        /* --- Main Score Display --- */
+        .big-score-input {
+            font-size: 24px; font-weight: 700; text-align: center;
+            background: #0f172a; border: 2px solid #334155;
+        }
+
+        /* --- Striker Toggle --- */
+        .radio-group { display: flex; background: var(--input-bg); padding: 5px; border-radius: 10px; }
+        .radio-group label {
+            flex: 1; text-align: center; padding: 10px; margin: 0;
+            border-radius: 8px; cursor: pointer; color: var(--text-mute);
+            font-weight: 600; font-size: 13px; transition: 0.3s;
+        }
+        input[type="radio"] { display: none; }
+        input[type="radio"]:checked + label {
+            background: var(--primary); color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        /* --- Floating Action Button --- */
+        .fab-container {
+            position: fixed; bottom: 0; left: 0; width: 100%;
+            padding: 15px; background: linear-gradient(to top, var(--bg-color) 80%, transparent);
+            box-sizing: border-box; display: flex; justify-content: center;
+        }
+        .update-btn {
+            background: var(--success); color: #064e3b;
+            width: 100%; max-width: 600px;
+            padding: 16px; border: none; border-radius: 12px;
+            font-size: 18px; font-weight: 700;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            cursor: pointer; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+            transform: scale(1); transition: 0.2s;
+        }
+        .update-btn:active { transform: scale(0.97); }
+
     </style>
 </head>
 <body>
-    <h2 style="text-align:center">Cricket Controller</h2>
-    
-    <div class="box">
-        <b>Match Header:</b> <input id="header" value="AUS v BAN">
-        <b>Flags (URL):</b>
-        <div class="row">
-            <input id="batFlag" value="https://flagcdn.com/w80/bd.png">
-            <input id="bowlFlag" value="https://flagcdn.com/w80/au.png">
+
+    <!-- Header -->
+    <div class="header" id="headerSection">
+        <div class="app-name"><i class="fas fa-cricket"></i> SCORER</div>
+        <div class="status-badge">
+            <div class="status-dot"></div> <span id="connText">Connecting...</span>
         </div>
     </div>
 
-    <div class="box">
-        <b>Score:</b>
-        <div class="row">
-            <input type="number" id="runs" placeholder="Runs" value="144">
-            <input type="number" id="wkts" placeholder="Wkts" value="3">
+    <div class="container">
+        
+        <!-- Match Info -->
+        <div class="card">
+            <div class="card-title"><i class="fas fa-info-circle"></i> Match Info</div>
+            <input type="text" id="header" value="AUS v BAN" placeholder="Match Header">
+            <div class="grid-2" style="margin-top:10px;">
+                <input type="text" id="status" value="TARGET 382" placeholder="Status (Target)">
+                <input type="text" id="overs" value="24.1" placeholder="Overs">
+            </div>
         </div>
-        <div class="row">
-            <input type="number" id="overs" placeholder="Overs" value="24.1">
-            <input id="partner" placeholder="Partner (P2)" value="P2: 50">
+
+        <!-- Main Score -->
+        <div class="card">
+            <div class="card-title"><i class="fas fa-chart-line"></i> Main Score</div>
+            <div class="grid-2">
+                <div>
+                    <label>Runs</label>
+                    <input type="number" id="runs" value="144" class="big-score-input" style="color:#e74c3c;">
+                </div>
+                <div>
+                    <label>Wickets</label>
+                    <input type="number" id="wkts" value="3" class="big-score-input">
+                </div>
+            </div>
+            <div style="margin-top: 10px;">
+                <label>Partnership</label>
+                <input type="text" id="partner" value="P2: 50 (32)" placeholder="P2: 50 (32)">
+            </div>
         </div>
-        <input id="status" value="TARGET 382">
+
+        <!-- Batsmen -->
+        <div class="card">
+            <div class="card-title"><i class="fas fa-user-friends"></i> Batsmen</div>
+            
+            <!-- Striker Selector -->
+            <div class="radio-group" style="margin-bottom: 15px;">
+                <input type="radio" id="st1" name="striker" value="1" checked>
+                <label for="st1">Striker 1</label>
+                
+                <input type="radio" id="st2" name="striker" value="2">
+                <label for="st2">Striker 2</label>
+            </div>
+
+            <!-- Batsman 1 -->
+            <div class="input-group">
+                <label>Batsman 1 Name | Runs | Balls</label>
+                <div class="grid-bat">
+                    <input id="b1Name" value="TAMIM">
+                    <input type="number" id="b1Runs" value="62">
+                    <input type="number" id="b1Balls" value="73">
+                </div>
+            </div>
+
+            <!-- Batsman 2 -->
+            <div class="input-group">
+                <label>Batsman 2 Name | Runs | Balls</label>
+                <div class="grid-bat">
+                    <input id="b2Name" value="MUSHFIQUR">
+                    <input type="number" id="b2Runs" value="23">
+                    <input type="number" id="b2Balls" value="22">
+                </div>
+            </div>
+        </div>
+
+        <!-- Bowler -->
+        <div class="card">
+            <div class="card-title"><i class="fas fa-bowling-ball"></i> Bowling</div>
+            <div class="grid-2">
+                <input id="bowlName" value="STARC" placeholder="Bowler Name">
+                <input id="bowlFigs" value="0-21" placeholder="Figures">
+            </div>
+            <div style="margin-top: 10px;">
+                <label>This Over (comma separated)</label>
+                <input id="thisOver" value="0,1,W,4,0" placeholder="e.g. 0,1,W,4,6">
+            </div>
+        </div>
+
+        <!-- Hidden Flags (Advanced) -->
+        <div class="card" style="opacity: 0.7;">
+            <div class="card-title"><i class="fas fa-flag"></i> Team Flags (URL)</div>
+            <div class="grid-2">
+                <input id="batFlag" value="https://flagcdn.com/w80/bd.png">
+                <input id="bowlFlag" value="https://flagcdn.com/w80/au.png">
+            </div>
+        </div>
+
     </div>
 
-    <div class="box">
-        <b>Batsmen:</b>
-        <div class="row">
-            <input id="b1Name" value="TAMIM"> <input id="b1Runs" value="62"> <input id="b1Balls" value="73">
-        </div>
-        <div class="row">
-            <input id="b2Name" value="MUSHFIQUR"> <input id="b2Runs" value="23"> <input id="b2Balls" value="22">
-        </div>
-        <b>Striker:</b>
-        <select id="striker"><option value="1">Batsman 1</option><option value="2">Batsman 2</option></select>
+    <!-- Floating Update Button -->
+    <div class="fab-container">
+        <button class="update-btn" onclick="send()">
+            <i class="fas fa-sync-alt"></i> UPDATE SCREEN
+        </button>
     </div>
-
-    <div class="box">
-        <b>Bowler:</b>
-        <input id="bowlName" value="STARC">
-        <input id="bowlFigs" value="0-21">
-        <b>This Over (comma separated):</b>
-        <input id="thisOver" value="0,1,W,4,0">
-    </div>
-
-    <button onclick="send()">UPDATE DISPLAY</button>
-    <p style="text-align:center; font-size:12px; color:green" id="conn"></p>
 
     <script>
         // ===============================================
@@ -67,13 +238,29 @@
         const MY_SECRET_ID = "12345"; 
         // ===============================================
 
+        // Check if user set connection to hivemq or mosquitto
+        // Using hivemq as default
         const client = new Paho.MQTT.Client("broker.hivemq.com", 8884, "client_ad_" + parseInt(Math.random()*1000));
         
+        client.onConnectionLost = (obj) => {
+            document.body.classList.remove('connected');
+            document.getElementById('connText').innerText = "Disconnected";
+        };
+
         client.connect({ useSSL: true, onSuccess: () => {
-            document.getElementById('conn').innerText = "✅ System Connected";
+            document.body.classList.add('connected');
+            document.getElementById('connText').innerText = "Online";
         }});
 
         function send() {
+            // Button Animation
+            const btn = document.querySelector('.update-btn');
+            btn.innerHTML = '<i class="fas fa-check"></i> SENT!';
+            setTimeout(() => { btn.innerHTML = '<i class="fas fa-sync-alt"></i> UPDATE SCREEN'; }, 1000);
+
+            // Get Striker Value
+            let strikerVal = document.getElementById('st1').checked ? 1 : 2;
+
             const data = {
                 header: document.getElementById('header').value,
                 batFlag: document.getElementById('batFlag').value,
@@ -93,7 +280,7 @@
                     runs: document.getElementById('b2Runs').value,
                     balls: document.getElementById('b2Balls').value
                 },
-                striker: document.getElementById('striker').value,
+                striker: strikerVal,
                 bowler: {
                     name: document.getElementById('bowlName').value,
                     figs: document.getElementById('bowlFigs').value
@@ -101,11 +288,14 @@
                 thisOver: document.getElementById('thisOver').value
             };
             
-            const message = new Paho.MQTT.Message(JSON.stringify(data));
-            message.destinationName = "cricket_live/" + MY_SECRET_ID;
-            client.send(message);
+            try {
+                const message = new Paho.MQTT.Message(JSON.stringify(data));
+                message.destinationName = "cricket_live/" + MY_SECRET_ID;
+                client.send(message);
+            } catch (e) {
+                alert("Connection not ready!");
+            }
         }
     </script>
 </body>
-
 </html>
